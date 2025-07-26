@@ -1,0 +1,38 @@
+[
+  {
+    "id": 0,
+    "name": "collar",
+    "picture": "images/collar.jpg",
+    "price": 0.05
+  },
+  {
+    "id": 1,
+    "name": "cat litterbox",
+    "picture": "images/litterbox.jpg",
+    "price": 0.1
+  },
+  {
+    "id": 2,
+    "name": "dog ball",
+    "picture": "images/dogball.jpg",
+    "price": 0.005
+  },
+  {
+    "id": 3,
+    "name": "pets shampoo",
+    "picture": "images/shampoo.jpg",
+    "price": 0.05
+  },
+  {
+    "id": 4,
+    "name": "cattree",
+    "picture": "images/cattree.jpg",
+    "price": 0.1
+  },
+  {
+    "id": 5,
+    "name": "pets bowl",
+    "picture": "images/bowl.jpg",
+    "price": 0.05
+  }
+]
