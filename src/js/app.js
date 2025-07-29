@@ -14,7 +14,8 @@ App = {
         petTemplate.find('.pet-age').text(data[i].age);
         petTemplate.find('.pet-location').text(data[i].location);
         petTemplate.find('.btn-adopt').attr('data-id', data[i].id);
-        petTemplate.find('.btn-return').attr('data-id', data[i].id); 
+        petTemplate.find('.btn-return').attr('data-id', data[i].id);
+        petTemplate.find('.btn-vote').attr('data-id', data[i].id);
 
         petsRow.append(petTemplate.html());
       }
@@ -56,6 +57,10 @@ App = {
   bindEvents: function () {
     $(document).on('click', '.btn-adopt', App.handleAdopt);
     $(document).on('click', '.btn-return', App.handleReturn);
+    $(document).on('click', '.btn-vote', App.handleVote);
+    $(document).on('click', '.btn-donate', App.handleDonate);
+
+
   },
 
   markAdopted: function () {
@@ -72,6 +77,8 @@ App = {
           petPanel.find('.btn-return').attr('disabled', true);
         }
       }
+      App.updateVoteCounts();
+      App.updateDonations();
     }).catch(function (err) {
       console.log(err.message);
     });
@@ -121,8 +128,85 @@ App = {
         alert("Return failed: " + (err.message || JSON.stringify(err)));
       });
     });
+  },
+  handleVote: function (event) {
+    event.preventDefault();
+    var petId = parseInt($(event.target).data('id'));
+
+    web3.eth.getAccounts(function (error, accounts) {
+      if (error) {
+        console.log(error);
+        return;
+      }
+      var account = accounts[0];
+
+      App.contracts.Adoption.deployed().then(function (instance) {
+        return instance.votePet(petId, { from: account });
+      }).then(function () {
+        return App.updateVoteCounts();
+      }).catch(function (err) {
+        console.log(err.message);
+      });
+    });
+  },
+  updateVoteCounts: function () {
+    App.contracts.Adoption.deployed().then(function (instance) {
+      for (let i = 0; i < 16; i++) {
+        instance.voteCounts(i).then(function (count) {
+          $('.panel-pet').eq(i).find('.vote-count').text("Votes: " + count.toString());
+        });
+      }
+    });
+  },
+
+  handleDonate: function (event) {
+    event.preventDefault();
+    var petId = parseInt($(event.target).data('id'));
+    var inputSelector = '.donation-amount[data-id="' + petId + '"]';
+    var amountEth = parseFloat($(inputSelector).val());
+
+    if (isNaN(amountEth) || amountEth < 0.01) {
+      alert("Please enter a valid donation amount in ETH.");
+      return;
+    }
+
+    var amountWei = web3.toWei(amountEth, 'ether');
+
+    web3.eth.getAccounts(function (error, accounts) {
+      if (error) {
+        console.log(error);
+        return;
+      }
+      var account = accounts[0];
+
+      App.contracts.Adoption.deployed().then(function (instance) {
+        return instance.donateToPet(petId, {
+          from: account,
+          value: amountWei
+        });
+      }).then(function () {
+        return App.updateDonations();
+      }).catch(function (err) {
+        console.error("Donation failed:", err.message);
+      });
+    });
+  },
+
+  updateDonations: function () {
+    App.contracts.Adoption.deployed().then(function (instance) {
+      for (let i = 0; i < 16; i++) {
+        instance.donations(i).then(function (amountWei) {
+          const amountEth = web3.fromWei(amountWei, 'ether');
+          $('.panel-pet').eq(i).find('.donation-total').text("Donated: " + amountEth + " ETH");
+        });
+      }
+    });
   }
+
+
+
 };
+
 
 $(function () {
   $(window).load(function () {

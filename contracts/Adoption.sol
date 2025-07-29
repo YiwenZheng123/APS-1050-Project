@@ -5,7 +5,14 @@ contract Adoption {
 
     event Adopted(uint petId, address adopter);
     event Returned(uint petId, address returner, uint amount);
+    event Voted(uint petId, uint newVoteCount);
+    event Donated(uint petId, address donor, uint amount);
 
+    // Store vote counts
+    mapping(uint => uint) public voteCounts;
+
+    // Store donations value
+    mapping(uint => uint) public donations;
     // Adopting a pet
     function adopt(uint petId) public returns (uint) {
         require(petId <= 15, "Invalid petId");
@@ -24,6 +31,23 @@ contract Adoption {
         emit Returned(petId, msg.sender, msg.value);
         return true;
     }
+
+    // Voting for a pet
+    function votePet(uint petId) public {
+            require(petId <= 15, "Invalid petId");
+            voteCounts[petId]++;
+            emit Voted(petId, voteCounts[petId]);
+        }
+
+    // Donate for a particular pet
+    function donateToPet(uint petId) public payable {
+        require(petId <= 15, "Invalid petId");
+        require(msg.value >= 0.01 ether, "Minimum donation is 0.01 ETH");
+
+        donations[petId] += msg.value;
+        emit Donated(petId, msg.sender, msg.value);
+    }
+
 
     // Withdraw funds collected (only contract owner)
     address payable owner;
