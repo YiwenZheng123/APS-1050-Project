@@ -1,7 +1,11 @@
 pragma solidity ^0.5.0;
 
 contract Adoption {
+    uint256 public maxAdoptionCount = 0;
     address[16] public adopters;
+    uint public topDonatedPetId;
+    uint public maxDonation;
+
 
     event Adopted(uint petId, address adopter);
     event Returned(uint petId, address returner, uint amount);
@@ -46,6 +50,7 @@ contract Adoption {
 
         donations[petId] += msg.value;
         emit Donated(petId, msg.sender, msg.value);
+        updateTopDonatedPet(petId);
     }
 
 
@@ -65,4 +70,40 @@ contract Adoption {
     function getAdopters() public view returns (address[16] memory) {
         return adopters;
     }
+     
+     
+    // Add-on Feature 10: User adoption history 
+    mapping(address => uint[]) public userAdoptionHistory; 
+
+    // Modified adopt wrapper to be called by frontend instead of original adopt()
+    function adoptWithTracking(uint petId) public returns (uint) {
+        require(petId <= 15, "Invalid petId");
+        require(adopters[petId] == address(0), "Pet already adopted");
+
+        adopters[petId] = msg.sender;
+        emit Adopted(petId, msg.sender);
+
+        // Feature 10: track user history
+        userAdoptionHistory[msg.sender].push(petId);
+
+        return petId;
+    }
+
+    // Optional: get full adoption history of a user
+    function getUserAdoptionHistory(address user) public view returns (uint[] memory) {
+        return userAdoptionHistory[user];
+    }
+
+    function updateTopDonatedPet(uint petId) internal {
+    if (donations[petId] > maxDonation) {
+        maxDonation = donations[petId];
+        topDonatedPetId = petId;
+        }
+    }
+
+function getTopDonatedPet() public view returns (uint petId, uint amount) {
+    return (topDonatedPetId, maxDonation);
+    }
+
+
 }

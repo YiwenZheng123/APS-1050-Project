@@ -1,4 +1,5 @@
 App = {
+  
   web3Provider: null,
   contracts: {},
 
@@ -13,46 +14,59 @@ App = {
         petTemplate.find('.pet-breed').text(data[i].breed);
         petTemplate.find('.pet-age').text(data[i].age);
         petTemplate.find('.pet-location').text(data[i].location);
+
         petTemplate.find('.btn-adopt').attr('data-id', data[i].id);
         petTemplate.find('.btn-return').attr('data-id', data[i].id);
         petTemplate.find('.btn-vote').attr('data-id', data[i].id);
+        petTemplate.find('.donation-amount').attr('data-id', data[i].id);
+        petTemplate.find('.btn-donate').attr('data-id', data[i].id);
 
         petsRow.append(petTemplate.html());
       }
+
     });
 
-    return await App.initWeb3();
-  },
+    await App.initWeb3();
+    await App.markAdopted(); 
+    await App.loadTopDonatedPet();
 
-  initWeb3: async function () {
-    if (window.ethereum) {
-      App.web3Provider = window.ethereum;
-      try {
-        await window.ethereum.request({ method: 'eth_requestAccounts' });
-      } catch (error) {
-        console.error('User denied account access');
-      }
-    } else if (window.web3) {
-      App.web3Provider = window.web3.currentProvider;
-    } else {
-      App.web3Provider = new Web3.providers.HttpProvider('http://localhost:7545');
+
+    return;
+
+  },
+  
+ initWeb3: async function () {
+  if (window.ethereum) {
+    App.web3Provider = window.ethereum;
+    try {
+      await window.ethereum.request({ method: 'eth_requestAccounts' });
+    } catch (error) {
+      console.error('User denied account access');
     }
-    web3 = new Web3(App.web3Provider);
+  } else if (window.web3) {
+    App.web3Provider = window.web3.currentProvider;
+  } else {
+    App.web3Provider = new Web3.providers.HttpProvider('http://localhost:7545');
+  }
 
-    return App.initContract();
-  },
+  App.web3 = new Web3(App.web3Provider);
+  App.web3 = new Web3(App.web3.currentProvider);  
+  await App.initContract();
+},
 
-  initContract: function () {
-    $.getJSON('Adoption.json', function (data) {
-      var AdoptionArtifact = data;
-      App.contracts.Adoption = TruffleContract(AdoptionArtifact);
-      App.contracts.Adoption.setProvider(App.web3Provider);
 
-      return App.markAdopted();
+
+    initContract: async function () {
+    return new Promise((resolve, reject) => {
+      $.getJSON('Adoption.json', function (data) {
+        App.contracts.Adoption = TruffleContract(data);
+        App.contracts.Adoption.setProvider(App.web3Provider);
+        App.bindEvents(); 
+        resolve();
+      }).fail(reject);
     });
-
-    return App.bindEvents();
   },
+
 
   bindEvents: function () {
     $(document).on('click', '.btn-adopt', App.handleAdopt);
@@ -85,32 +99,33 @@ App = {
   },
 
   handleAdopt: function (event) {
-    event.preventDefault();
-    var petId = parseInt($(event.target).data('id'));
+  event.preventDefault();
+  var petId = parseInt($(event.target).data('id'));
 
-    web3.eth.getAccounts(function (error, accounts) {
-      if (error) {
-        console.log(error);
-        return;
-      }
-      var account = accounts[0];
+  window.ethereum.request({ method: 'eth_accounts' }).then(function (accounts) {
+    if (!accounts || accounts.length === 0) {
+      alert("No Ethereum accounts available. Please connect MetaMask.");
+      return;
+    }
 
-      App.contracts.Adoption.deployed().then(function (instance) {
-        return instance.adopt(petId, { from: account });
-      }).then(function () {
-        return App.markAdopted();
-      }).catch(function (err) {
-        console.log(err.message);
-      });
+    var account = accounts[0];
+
+    App.contracts.Adoption.deployed().then(function (instance) {
+      return instance.adoptWithTracking(petId, { from: account });
+    }).then(function () {
+      return App.markAdopted();
+    }).catch(function (err) {
+      console.log(err.message);
     });
-  },
+  });
+},
 
   handleReturn: function (event) {
     event.preventDefault();
     var petId = parseInt($(event.target).data('id'));
     console.log("Returning petId:", petId); ///////
 
-    web3.eth.getAccounts(function (error, accounts) {
+    App.web3.eth.getAccounts(function (error, accounts) {
       if (error) {
         console.log(error);
         return;
@@ -133,7 +148,7 @@ App = {
     event.preventDefault();
     var petId = parseInt($(event.target).data('id'));
 
-    web3.eth.getAccounts(function (error, accounts) {
+    App.web3.eth.getAccounts(function (error, accounts) {
       if (error) {
         console.log(error);
         return;
@@ -159,7 +174,7 @@ App = {
     });
   },
 
-  handleDonate: function (event) {
+    handleDonate: function (event) {
     event.preventDefault();
     var petId = parseInt($(event.target).data('id'));
     var inputSelector = '.donation-amount[data-id="' + petId + '"]';
@@ -170,13 +185,17 @@ App = {
       return;
     }
 
-    var amountWei = web3.toWei(amountEth, 'ether');
+    var amountWei = App.web3.toWei(amountEth.toString(), 'ether');
+  
 
-    web3.eth.getAccounts(function (error, accounts) {
-      if (error) {
-        console.log(error);
+
+
+    App.web3.eth.getAccounts(function (error, accounts) {
+      if (error || accounts.length === 0) {
+        console.error("No accounts found.");
         return;
       }
+
       var account = accounts[0];
 
       App.contracts.Adoption.deployed().then(function (instance) {
@@ -188,6 +207,7 @@ App = {
         return App.updateDonations();
       }).catch(function (err) {
         console.error("Donation failed:", err.message);
+        alert("Donation failed: " + err.message);
       });
     });
   },
@@ -196,7 +216,14 @@ App = {
     App.contracts.Adoption.deployed().then(function (instance) {
       for (let i = 0; i < 16; i++) {
         instance.donations(i).then(function (amountWei) {
-          const amountEth = web3.fromWei(amountWei, 'ether');
+          if (typeof amountWei === "undefined") {
+            console.warn(`Donation for pet ${i} is undefined`);
+            return;
+          }
+         
+          const amountEth = App.web3.fromWei(amountWei.toString(), 'ether');
+
+
           $('.panel-pet').eq(i).find('.donation-total').text("Donated: " + amountEth + " ETH");
         });
       }
@@ -213,3 +240,58 @@ $(function () {
     App.init();
   });
 });
+
+
+// Feature 10: Show current user's adoption history
+App.showMyAdoptionHistory = function () {
+  App.web3.eth.getAccounts(function (error, accounts) {
+    if (error || accounts.length === 0) {
+      console.error("Cannot fetch accounts");
+      return;
+    }
+    const account = accounts[0];
+
+    App.contracts.Adoption.deployed().then(function (instance) {
+      return instance.getUserAdoptionHistory.call(account);
+    }).then(function (petIds) {
+      const list = document.getElementById("adoptionHistoryList");
+      if (!list) return;
+      list.innerHTML = ""; 
+
+      if (petIds.length === 0) {
+        list.innerHTML = "<li>No pets adopted yet.</li>";
+        return;
+      }
+
+      petIds.forEach(function (id) {
+        const li = document.createElement("li");
+        li.innerText = "Pet ID: " + id;
+        list.appendChild(li);
+      });
+    }).catch(function (err) {
+      console.error("Error fetching adoption history:", err);
+    });
+  });
+};
+
+App.loadTopDonatedPet = function () {
+  App.contracts.Adoption.deployed().then(function (instance) {
+    return instance.getTopDonatedPet.call();
+  }).then(function (result) {
+    const petId = result[0].toString();           
+    const amountWei = result[1].toString();       
+    const amountEth = App.web3.fromWei(amountWei, 'ether');  
+
+    const target = document.getElementById("topDonatedPet");
+    if (target) {
+      target.innerText = `Pet ID: ${petId} — ${amountEth} ETH`;
+    }
+  }).catch(function (err) {
+    console.error("Error loading top donated pet:", err);
+  });
+};
+
+
+
+
+
