@@ -28,7 +28,15 @@ App = {
 
     await App.initWeb3();
     await App.markAdopted(); 
-    await App.loadTopDonatedPet();
+    await App.markAdopted();
+    setTimeout(() => {
+      App.loadDonationLeaderboardFromDOM();
+    }, 2000); 
+    await App.loadMyAdoptionHistoryWithDetails(); 
+    setInterval(App.loadMyAdoptionHistoryWithDetails, 3000); 
+
+
+
 
 
     return;
@@ -205,7 +213,13 @@ App = {
         });
       }).then(function () {
         return App.updateDonations();
+      }).then(function () {
+        setTimeout(() => {
+          App.loadDonationLeaderboardFromDOM();
+        }, 500); 
       }).catch(function (err) {
+
+
         console.error("Donation failed:", err.message);
         alert("Donation failed: " + err.message);
       });
@@ -243,53 +257,87 @@ $(function () {
 
 
 // Feature 10: Show current user's adoption history
-App.showMyAdoptionHistory = function () {
+App.loadMyAdoptionHistoryWithDetails = function () {
   App.web3.eth.getAccounts(function (error, accounts) {
     if (error || accounts.length === 0) {
-      console.error("Cannot fetch accounts");
+      console.error("No Ethereum account available.");
       return;
     }
-    const account = accounts[0];
 
+    const account = accounts[0];
     App.contracts.Adoption.deployed().then(function (instance) {
       return instance.getUserAdoptionHistory.call(account);
     }).then(function (petIds) {
-      const list = document.getElementById("adoptionHistoryList");
-      if (!list) return;
-      list.innerHTML = ""; 
-
-      if (petIds.length === 0) {
-        list.innerHTML = "<li>No pets adopted yet.</li>";
+      if (!petIds || petIds.length === 0) {
+        document.getElementById("autoAdoptionHistoryList").innerHTML = "<p>No pets adopted yet.</p>";
         return;
       }
 
-      petIds.forEach(function (id) {
-        const li = document.createElement("li");
-        li.innerText = "Pet ID: " + id;
-        list.appendChild(li);
+      $.getJSON('../pets.json', function (petsData) {
+        const container = document.getElementById("autoAdoptionHistoryList");
+        container.innerHTML = ""; // Clear old
+
+        petIds.forEach(function (id) {
+          const pet = petsData[id];
+          if (!pet) return;
+
+          container.innerHTML += `
+            <div class="panel panel-default" style="margin-bottom: 10px;">
+              <div class="panel-body" style="padding: 10px;">
+                <img src="${pet.picture}" style="height: 40px; float: left; margin-right: 10px;">
+                <strong>${pet.name}</strong><br/>
+                <small>${pet.breed}</small>
+              </div>
+            </div>
+          `;
+        });
       });
     }).catch(function (err) {
-      console.error("Error fetching adoption history:", err);
+      console.error("Error loading adoption history:", err);
     });
   });
 };
 
-App.loadTopDonatedPet = function () {
-  App.contracts.Adoption.deployed().then(function (instance) {
-    return instance.getTopDonatedPet.call();
-  }).then(function (result) {
-    const petId = result[0].toString();           
-    const amountWei = result[1].toString();       
-    const amountEth = App.web3.fromWei(amountWei, 'ether');  
 
-    const target = document.getElementById("topDonatedPet");
-    if (target) {
-      target.innerText = `Pet ID: ${petId} — ${amountEth} ETH`;
+App.loadDonationLeaderboardFromDOM = function () {
+  const leaderboardDiv = document.getElementById("donationLeaderboard");
+  leaderboardDiv.innerHTML = "";
+
+  const petCards = $('.panel-pet');
+  let donationData = [];
+
+  petCards.each(function (index, element) {
+    const donationText = $(element).find('.donation-total').text();  // e.g., "Donated: 0.01 ETH"
+    const match = donationText.match(/([\d.]+)\s*ETH/);
+    const amount = match ? parseFloat(match[1]) : 0;
+
+    if (amount > 0) {
+      donationData.push({ id: index, amount });
     }
-  }).catch(function (err) {
-    console.error("Error loading top donated pet:", err);
+  });
+
+  // Sort from high to low
+  donationData.sort((a, b) => b.amount - a.amount);
+
+  // Fetch JSON once
+  $.getJSON('../pets.json', function (petsData) {
+    donationData.forEach(entry => {
+      const pet = petsData[entry.id];
+      if (!pet) return;
+
+      leaderboardDiv.innerHTML += `
+        <div class="panel panel-default">
+          <div class="panel-body">
+            <img src="${pet.picture}" style="height: 80px;"> 
+            <strong>${pet.name}</strong> (${pet.breed}) — Donated: ${entry.amount} ETH
+          </div>
+        </div>
+      `;
+    });
   });
 };
+
+
 
 
 
