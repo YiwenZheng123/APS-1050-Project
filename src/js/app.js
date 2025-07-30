@@ -28,10 +28,13 @@ App = {
 
     await App.initWeb3();
     await App.markAdopted(); 
-    await App.markAdopted();
-    setTimeout(() => {
-      App.loadDonationLeaderboardFromDOM();
-    }, 2000); 
+    await App.loadMostAdoptedBreed();
+    setInterval(App.loadMostAdoptedBreed, 3000); 
+
+    
+    App.loadDonationLeaderboardFromDOM();
+    setInterval(App.loadDonationLeaderboardFromDOM, 3000);
+
     await App.loadMyAdoptionHistoryWithDetails(); 
     setInterval(App.loadMyAdoptionHistoryWithDetails, 3000); 
 
@@ -109,6 +112,8 @@ App = {
   handleAdopt: function (event) {
   event.preventDefault();
   var petId = parseInt($(event.target).data('id'));
+  var petPanel = $(event.target).closest('.panel-pet');
+  var breed = petPanel.find('.pet-breed').text(); 
 
   window.ethereum.request({ method: 'eth_accounts' }).then(function (accounts) {
     if (!accounts || accounts.length === 0) {
@@ -119,14 +124,16 @@ App = {
     var account = accounts[0];
 
     App.contracts.Adoption.deployed().then(function (instance) {
-      return instance.adoptWithTracking(petId, { from: account });
+    
+      return instance.adoptWithTracking(petId, breed, { from: account });
     }).then(function () {
       return App.markAdopted();
     }).catch(function (err) {
-      console.log(err.message);
+      console.log("Adoption failed:", err.message);
     });
   });
 },
+
 
   handleReturn: function (event) {
     event.preventDefault();
@@ -307,7 +314,7 @@ App.loadDonationLeaderboardFromDOM = function () {
   let donationData = [];
 
   petCards.each(function (index, element) {
-    const donationText = $(element).find('.donation-total').text();  // e.g., "Donated: 0.01 ETH"
+    const donationText = $(element).find('.donation-total').text();  
     const match = donationText.match(/([\d.]+)\s*ETH/);
     const amount = match ? parseFloat(match[1]) : 0;
 
@@ -338,8 +345,15 @@ App.loadDonationLeaderboardFromDOM = function () {
 };
 
 
-
-
+App.loadMostAdoptedBreed = function () {
+  App.contracts.Adoption.deployed().then(function (instance) {
+    return instance.getMostAdoptedBreed();
+  }).then(function (result) {
+    const breed = result[0];
+    const count = result[1].toString();
+    document.getElementById("mostAdoptedBreed").innerText = `${breed} — ${count} adoptions`;
+  }).catch(console.error);
+};
 
 
 

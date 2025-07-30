@@ -17,6 +17,15 @@ contract Adoption {
 
     // Store donations value
     mapping(uint => uint) public donations;
+
+    mapping(string => uint) public breedAdoptionCount;
+    string public mostAdoptedBreed;
+
+    function getMostAdoptedBreed() public view returns (string memory, uint) {
+    return (mostAdoptedBreed, breedAdoptionCount[mostAdoptedBreed]);
+    }
+
+
     // Adopting a pet
     function adopt(uint petId) public returns (uint) {
         require(petId <= 15, "Invalid petId");
@@ -76,18 +85,23 @@ contract Adoption {
     mapping(address => uint[]) public userAdoptionHistory; 
 
     // Modified adopt wrapper to be called by frontend instead of original adopt()
-    function adoptWithTracking(uint petId) public returns (uint) {
-        require(petId <= 15, "Invalid petId");
-        require(adopters[petId] == address(0), "Pet already adopted");
+   function adoptWithTracking(uint petId, string memory breed) public returns (uint) {
+    require(petId <= 15, "Invalid petId");
+    require(adopters[petId] == address(0), "Pet already adopted");
 
-        adopters[petId] = msg.sender;
-        emit Adopted(petId, msg.sender);
+    adopters[petId] = msg.sender;
+    emit Adopted(petId, msg.sender);
 
-        // Feature 10: track user history
-        userAdoptionHistory[msg.sender].push(petId);
+    userAdoptionHistory[msg.sender].push(petId);
 
-        return petId;
+    breedAdoptionCount[breed]++;
+    if (bytes(mostAdoptedBreed).length == 0 || breedAdoptionCount[breed] > breedAdoptionCount[mostAdoptedBreed]) {
+        mostAdoptedBreed = breed;
     }
+
+    return petId;
+}
+
 
     // Optional: get full adoption history of a user
     function getUserAdoptionHistory(address user) public view returns (uint[] memory) {
